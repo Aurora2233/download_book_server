@@ -18,13 +18,13 @@ const DownloadBook = async (url) => {
         const [bookUrl] = await collection.find({
             url: url,
         }).toArray()
+        console.log(bookUrl, 'bookUrl');
         if (bookUrl) {
             return {
                 ...bookUrl,
                 downloadUrl: `${getDownloadUrl(`books/${bookUrl.name}.txt`)}&attname=${encodeURI(bookUrl.name)}.txt`
             }
         }
-
         const res = await request.get(url, {}, {
             responseType: 'arraybuffer'
         })
@@ -83,6 +83,8 @@ const DownloadBook = async (url) => {
                             contentType: res.headers['content-type']
                         })
                         const content = window.document.querySelector('#content').textContent
+                        console.log(item.title);
+
                         var data = {
                             index: item.index,
                             title: item.title,
