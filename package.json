@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nodemon ./bin/www",
-    "start": "nodemon ./bin/www"
+    "start": "node ./bin/www"
   },
   "dependencies": {
     "async": "^3.2.4",
@@ -19,9 +19,15 @@
     "jade": "~1.11.0",
     "jsdom": "^20.0.1",
     "lodash": "^4.17.21",
-    "morgan": "~1.9.1"
+    "mongodb": "^4.11.0",
+    "morgan": "~1.9.1",
+    "mysql2": "^2.3.3",
+    "prettier": "^2.7.1",
+    "qiniu": "^7.7.0",
+    "sequelize": "^6.25.3"
   },
   "devDependencies": {
+    "eslint": "^8.26.0",
     "nodemon": "^2.0.20"
   }
 }

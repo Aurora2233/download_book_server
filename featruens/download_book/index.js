@@ -1,18 +1,29 @@
-const fs = require('fs')
 const request = require('../../utils/request')
 const jsdom = require('jsdom')
-const iconv = require('iconv-lite');
-const lodash = require('lodash')
+// const iconv = require('iconv-lite');
 const async = require('async')
-const {
-    uniqBy,
-    orderBy
-} = lodash
+const mongodb = require('../../utils/mongodb')
+const uploadFile = require('../../utils/upload')
+const getDownloadUrl = require('../../utils/download')
 const {
     JSDOM
 } = jsdom
 const DownloadBook = async (url) => {
     try {
+        const collection = await mongodb('list')
+
+        // /**
+        //  * 判断是否已保存
+        //  */
+        const [bookUrl] = await collection.find({
+            url: url,
+        }).toArray()
+        if (bookUrl) {
+            return {
+                ...bookUrl,
+                downloadUrl: `${getDownloadUrl(`books/${bookUrl.name}.txt`)}&attname=${encodeURI(bookUrl.name)}.txt`
+            }
+        }
 
         const res = await request.get(url, {}, {
             responseType: 'arraybuffer'
@@ -31,11 +42,11 @@ const DownloadBook = async (url) => {
 
         const bookName = dom.window.document.querySelector("h1").textContent
 
-        if(fs.existsSync(`${process.cwd()}/public/book/${bookName}.txt`)){
-            return bookName
-        }
+        // if (fs.existsSync(`${process.cwd()}/public/book/${bookName}.txt`)) {
+        //     return bookName
+        // }
 
-        dom.window.document.querySelectorAll("a").forEach((item, index) => {
+        dom.window.document.querySelectorAll("a").forEach((item) => {
             const title = item.textContent
             const url = item.href
             const rule = /第(.{1,})章/
@@ -59,7 +70,7 @@ const DownloadBook = async (url) => {
         // const data2 = Array(100).fill('').map((_, index) => index)
 
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             async.mapLimit(data, 10, function (item, callback) {
                 try {
                     request.get(item.url, {}, {
@@ -86,7 +97,15 @@ const DownloadBook = async (url) => {
                 }
             }, (err, results) => {
                 const bookContent = results.map((item) => item.title + '\n\r' + item.content).join('\n\r');
-                fs.writeFileSync(`${process.cwd()}/public/book/${bookName}.txt`, bookContent, 'utf-8');
+                // fs.writeFileSync(`${process.cwd()}/public/book/${bookName}.txt`, bookContent, 'utf-8');
+                uploadFile(`books/${bookName}.txt`, bookContent).then(() => {
+                    console.log(getDownloadUrl(`books/${bookName}.txt`), );
+                    collection.insertOne({
+                        name: bookName,
+                        url: url,
+                        done: true
+                    })
+                })
                 resolve(bookName)
             })
         })
