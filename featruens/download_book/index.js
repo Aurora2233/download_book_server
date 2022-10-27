@@ -8,6 +8,7 @@ const getDownloadUrl = require('../../utils/download')
 const {
     JSDOM
 } = jsdom
+
 const DownloadBook = async (url) => {
     try {
         const collection = await mongodb('list')
@@ -31,21 +32,13 @@ const DownloadBook = async (url) => {
         if (res.headers['content-type'].indexOf('text/html') == -1) {
             return 'Error'
         }
-        // const html = iconv.decode(res.data, 'GBK')
-        // console.log(html, 'outerHTML');
         let dom = new JSDOM(res.data, {
             url: url,
             contentType: res.headers['content-type']
         })
         let sum = 0
         const results = {}
-
         const bookName = dom.window.document.querySelector("h1").textContent
-
-        // if (fs.existsSync(`${process.cwd()}/public/book/${bookName}.txt`)) {
-        //     return bookName
-        // }
-
         dom.window.document.querySelectorAll("a").forEach((item) => {
             const title = item.textContent
             const url = item.href
@@ -59,37 +52,58 @@ const DownloadBook = async (url) => {
         })
 
         let data = Object.keys(results).map(key => {
+            console.log(key, 'key');
             return {
                 url: key,
                 ...results[key]
             }
         }).sort((a, b) => a.index - b.index)
-        // 第一步 获取目录 data
-        // return data
-
-        // const data2 = Array(100).fill('').map((_, index) => index)
-
 
         return new Promise((resolve) => {
-            async.mapLimit(data, 10, function (item, callback) {
+            async.mapLimit(data, 5, function (item, callback) {
                 try {
                     request.get(item.url, {}, {
                         responseType: 'arraybuffer'
-                    }).then(res => {
+                    }).then(async (res) => {
                         let {
                             window
                         } = new JSDOM(res.data, {
                             url: url,
                             contentType: res.headers['content-type']
                         })
-                        const content = window.document.querySelector('#content').textContent
-                        console.log(item.title);
+
+
+                        //获取文章主体
+
+                        const childNodes = window.document.body.children
+                        const stack = []
+                        stack.push(...childNodes)
+                        const list = []
+                        while (stack.length) {
+                            const item = stack.pop()
+                            const children = item.children
+                            const len = children.length
+                            if (!len) continue;
+                            const filterData = [...children].filter(item => {
+                                return ['br'].some(i => i == item.localName)
+                            })
+                            if (filterData.length / len > 0.8) {
+                                list.push(item)
+                                continue;
+                            }
+                            stack.push(...children)
+                        }
+
+                        const content = list.reduce((cur, acc) => {
+                            return acc.textContent.length > cur.length ? acc.textContent : cur
+                        }, '')
 
                         var data = {
                             index: item.index,
                             title: item.title,
                             content: content
                         };
+                        // await new Promise(resolve => setTimeout(resolve, 1000));
                         callback(null, data);
                     })
 
@@ -99,7 +113,6 @@ const DownloadBook = async (url) => {
                 }
             }, (err, results) => {
                 const bookContent = results.map((item) => item.title + '\n\r' + item.content).join('\n\r');
-                // fs.writeFileSync(`${process.cwd()}/public/book/${bookName}.txt`, bookContent, 'utf-8');
                 uploadFile(`books/${bookName}.txt`, bookContent).then(() => {
                     console.log(getDownloadUrl(`books/${bookName}.txt`), );
                     collection.insertOne({
@@ -111,20 +124,6 @@ const DownloadBook = async (url) => {
                 resolve(bookName)
             })
         })
-
-
-
-
-
-        // TODO: 有可能响应头不包含字符集，导致解析字符集失败
-        // let charset = ''
-        // dom.window.document.querySelectorAll("meta").forEach((item) => {
-        //     if (item.getAttribute('charset')) {
-        //         charset = item.getAttribute('charset')
-        //     }
-        // })
-        // console.log(dom.window.document.documentElement.outerHTML, 'dom.window');
-        // console.log(charset, 'charset');
     } catch (error) {
         console.log(error, 'error');
         return error
